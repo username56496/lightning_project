@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>실시간 소셜 운동·취미 번개 매칭</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f4f4f9; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        button { background: #007BFF; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .update-btn { background: #28a745; margin-left: 5px; }
+        .update-btn:hover { background: #218838; }
+        .delete-btn { background: #dc3545; margin-left: 5px; }
+        .delete-btn:hover { background: #a71d2a; }
+        input { padding: 8px; margin-right: 8px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <h1>⚡ 실시간 운동·취미 번개 매칭</h1>
+    
+    <div class="card">
+        <h3>1. 새 번개 모임 만들기</h3>
+        <input type="text" id="titleInput" placeholder="모임 제목 (예: 한강 러닝)" style="width: 45%;">
+        <input type="number" id="maxPeopleInput" placeholder="정원" value="3" min="1" max="10" style="width: 55px;">명
+        <input type="password" id="passwordInput" placeholder="비밀번호" style="width: 80px;">
+        <br>
+        <button onclick="createMeeting()">모임 개설하기</button>
+    </div>
+
+    <div class="card">
+        <h3>2. 진행 중인 번개 목록 (참여, 수정, 삭제)</h3>
+        <div id="meetingList">불러오는 중...</div>
+    </div>
+
+<script>
+    async function fetchMeetings() {
+        const res = await fetch('/api/meetings');
+        const result = await res.json();
+        const listDiv = document.getElementById('meetingList');
+        listDiv.innerHTML = '';
+        
+        if (result.data.length === 0) {
+            listDiv.innerHTML = '<p>현재 진행 중인 번개 모임이 없습니다.</p>';
+            return;
+        }
+
+        result.data.forEach(m => {
+            listDiv.innerHTML += `
+                <div style="border-bottom: 1px solid #ddd; padding: 12px 0;">
+                    <strong>${m.title}</strong> (정원: ${m.members.length} / ${m.max_people}명)<br>
+                    참여자: ${m.members.join(', ') || '없음'}<br>
+                    <div style="margin-top: 8px;">
+                        <input type="text" id="nickname_${m.id}" placeholder="닉네임 입력" style="width: 100px;">
+                        <button onclick="joinMeeting(${m.id})">참여</button>
+                        <button class="update-btn" onclick="updateMeeting(${m.id})">수정</button>
+                        <button class="delete-btn" onclick="deleteMeeting(${m.id})">삭제</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    async function createMeeting() {
+        const title = document.getElementById('titleInput').value;
+        const maxPeople = document.getElementById('maxPeopleInput').value;
+        const password = document.getElementById('passwordInput').value;
+
+        if (!title || !password) {
+            alert("모임 제목과 비밀번호를 모두 입력해주세요!");
+            return;
+        }
+
+        const res = await fetch('/api/meetings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title: title, max_people: maxPeople, password: password})
+        });
+        const result = await res.json();
+        alert(result.message);
+        
+        if(result.status === 'success') {
+            document.getElementById('titleInput').value = '';
+            document.getElementById('passwordInput').value = '';
+            fetchMeetings();
+        }
+    }
+
+    async function joinMeeting(id) {
+        const nickname = document.getElementById(`nickname_${id}`).value;
+        const res = await fetch(`/api/meetings/${id}/join`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nickname: nickname})
+        });
+        const result = await res.json();
+        alert(result.message);
+        fetchMeetings();
+    }
+
+    async function updateMeeting(id) {
+        const newTitle = prompt("수정할 모임 제목을 입력하세요 (변경하지 않으려면 취소 또는 빈칸):");
+        if (newTitle === null) return;
+
+        const newMaxPeople = prompt("수정할 총 정원 숫자를 입력하세요 (예: 5):");
+        if (newMaxPeople === null) return;
+
+        const password = prompt("이 모임의 [비밀번호]를 입력하세요:");
+        if (password === null) return;
+
+        const bodyData = { password: password };
+        if (newTitle.trim() !== "") bodyData.title = newTitle;
+        if (newMaxPeople.trim() !== "") bodyData.max_people = parseInt(newMaxPeople);
+
+        const res = await fetch(`/api/meetings/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(bodyData)
+        });
+        const result = await res.json();
+        alert(result.message);
+        fetchMeetings();
+    }
+
+    async function deleteMeeting(id) {
+        const password = prompt("이 모임의 [비밀번호]를 입력하세요:");
+        if (password === null) return;
+
+        const res = await fetch(`/api/meetings/${id}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ password: password })
+        });
+        const result = await res.json();
+        alert(result.message);
+        fetchMeetings();
+    }
+
+    fetchMeetings();
+</script>
+</body>
+</html>
